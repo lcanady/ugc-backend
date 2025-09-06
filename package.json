@@ -12,7 +12,7 @@
     "test:integration": "jest tests/integration",
     "test:coverage": "jest --coverage",
     "generate-samples": "node examples/generate-sample-images.js",
-    "docs:serve": "npx swagger-ui-serve openapi.yaml",
+    "docs:serve": "echo 'Swagger UI is available at http://localhost:3000/api-docs when the server is running'",
     "deploy:prod": "pm2 start ecosystem.config.js --env production",
     "deploy:dev": "pm2 start ecosystem.config.js --env development",
     "test:api": "bash scripts/test-api.sh",
@@ -43,6 +43,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@google/genai": "^1.17.0",
     "axios": "^1.11.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "bullmq": "^5.58.5",
     "cors": "^2.8.5",
@@ -63,6 +64,8 @@
     "redis": "^5.8.2",
     "sequelize": "^6.37.7",
     "sequelize-cli": "^6.6.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^12.0.0"
   },
   "devDependencies": {

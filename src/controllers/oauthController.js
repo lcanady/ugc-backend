@@ -5,12 +5,23 @@ const oauthService = require('../services/oauthService');
  */
 class OAuthController {
   /**
-   * Login with email/password (for testing purposes)
-   * POST /api/v1/oauth/login
+   * Register a new user
+   * POST /api/v1/oauth/register
    */
-  async login(req, res) {
+  async register(req, res) {
     try {
-      const { email, password } = req.body;
+      // Check if request body exists and is properly parsed
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST_BODY',
+            message: 'Request body must be valid JSON with Content-Type: application/json'
+          }
+        });
+      }
+
+      const { email, password, name } = req.body;
       
       if (!email) {
         return res.status(400).json({
@@ -22,18 +33,130 @@ class OAuthController {
         });
       }
       
-      // For demo purposes, we'll accept any password for existing users
-      // In production, you would verify the password hash
-      let user = oauthService.findUserByEmail(email);
+      if (!password) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_PASSWORD',
+            message: 'Password is required.'
+          }
+        });
+      }
+      
+      if (password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'WEAK_PASSWORD',
+            message: 'Password must be at least 6 characters long.'
+          }
+        });
+      }
+      
+      // Check if user already exists
+      const existingUser = oauthService.findUserByEmail(email);
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: 'USER_EXISTS',
+            message: 'User with this email already exists.'
+          }
+        });
+      }
+      
+      // Create new user with hashed password
+      const user = await oauthService.createUser({
+        email: email,
+        name: name || email.split('@')[0],
+        provider: 'local',
+        providerId: email,
+        role: 'user',
+        password: password
+      });
+      
+      // Generate tokens
+      const accessToken = oauthService.generateAccessToken(user);
+      const refreshToken = oauthService.generateRefreshToken(user);
+      
+      res.status(201).json({
+        success: true,
+        message: 'User registered successfully.',
+        data: {
+          accessToken,
+          refreshToken,
+          tokenType: 'Bearer',
+          expiresIn: oauthService.parseTimeToMs(oauthService.jwtExpiresIn) / 1000,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            permissions: user.permissions
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error during registration:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'REGISTRATION_ERROR',
+          message: 'Registration failed.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Login with email/password (for testing purposes)
+   * POST /api/v1/oauth/login
+   */
+  async login(req, res) {
+    try {
+      // Check if request body exists and is properly parsed
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST_BODY',
+            message: 'Request body must be valid JSON with Content-Type: application/json'
+          }
+        });
+      }
+
+      const { email, password } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_EMAIL',
+            message: 'Email is required.'
+          }
+        });
+      }
+
+      if (!password) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_PASSWORD',
+            message: 'Password is required.'
+          }
+        });
+      }
+      
+      // Verify user credentials
+      const user = await oauthService.verifyUserCredentials(email, password);
       
       if (!user) {
-        // Create new user for demo purposes
-        user = oauthService.createUser({
-          email: email,
-          name: email.split('@')[0],
-          provider: 'local',
-          providerId: email,
-          role: 'user'
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_CREDENTIALS',
+            message: 'Invalid email or password.'
+          }
         });
       }
       

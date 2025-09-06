@@ -1,6 +1,7 @@
 const dotenv = require('dotenv');
 
 // Load environment variables from .env file
+// In Docker, environment variables from docker-compose will override .env file values
 dotenv.config();
 
 /**
@@ -12,7 +13,6 @@ class Config {
       'OPENAI_API_KEY',
       'GEMINI_API_KEY',
       'GOOGLE_AI_API_KEY',
-      'KIE_AI_API_KEY',
       'PORT',
       'NODE_ENV'
     ];
@@ -20,8 +20,9 @@ class Config {
     this.optionalVars = {
       'OPENAI_API_URL': 'https://api.openai.com/v1/chat/completions',
       'GEMINI_API_URL': 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent',
-      'KIE_AI_GENERATE_URL': 'https://api.kie.ai/api/v1/veo/generate',
-      'KIE_AI_STATUS_URL': 'https://api.kie.ai/api/v1/veo/record-info',
+      'KIE_AI_GENERATE_URL': 'https://api.kie.ai/api/v1/veo/generate', // Legacy - not used
+      'KIE_AI_STATUS_URL': 'https://api.kie.ai/api/v1/veo/record-info', // Legacy - not used
+      'KIE_AI_API_KEY': '', // Legacy - not used
       'MAX_IMAGES': '4',
       'MAX_FILE_SIZE': '10485760', // 10MB in bytes
       'VIDEO_POLL_INTERVAL': '60000', // 60 seconds
@@ -162,6 +163,8 @@ class Config {
         apiKey: this.get('GOOGLE_AI_API_KEY')
       },
       kieAi: {
+        // Legacy configuration - KIE AI is no longer used
+        // Video generation now uses Google Veo 3 via GOOGLE_AI_API_KEY
         apiKey: this.get('KIE_AI_API_KEY'),
         generateUrl: this.get('KIE_AI_GENERATE_URL'),
         statusUrl: this.get('KIE_AI_STATUS_URL')

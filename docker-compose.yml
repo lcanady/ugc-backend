@@ -10,6 +10,18 @@ services:
       - "3000:3000"
     env_file:
       - .env.docker
+    environment:
+      # Override critical Docker-specific settings
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgresql://ugc_user:ugc_password@postgres:5432/ugc_db
+      - POSTGRES_URL=postgresql://ugc_user:ugc_password@postgres:5432/ugc_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=ugc_db
+      - DB_USER=ugc_user
+      - DB_PASSWORD=ugc_password
     volumes:
       - .:/app
       - /app/node_modules
@@ -67,7 +79,7 @@ services:
     ports:
       - "8080:80"
     environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@ugc.local
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
       - PGADMIN_DEFAULT_PASSWORD=admin123
     volumes:
       - pgadmin_data:/var/lib/pgadmin

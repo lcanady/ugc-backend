@@ -30,12 +30,13 @@ The easiest way to get started is using Docker, which automatically sets up Redi
    - `OPENAI_API_KEY` - Required for script generation
    - `GEMINI_API_KEY` - Required for image analysis  
    - `GOOGLE_AI_API_KEY` - Required for Veo 3 video generation
-   - `KIE_AI_API_KEY` - Legacy video service (optional)
+   - ~~`KIE_AI_API_KEY`~~ - No longer required (replaced by Google Veo 3)
 
 3. **Access the services:**
    - **API**: http://localhost:3000
+   - **Swagger API Docs**: http://localhost:3000/api-docs 📚
    - **Redis Commander**: http://localhost:8081
-   - **pgAdmin**: http://localhost:8080 (admin@ugc.local / admin123)
+   - **pgAdmin**: http://localhost:8080 (admin@example.com / admin123)
 
 4. **Stop the environment:**
    ```bash

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 /**
  * OAuth2 Service for managing JWT tokens and user authentication
@@ -16,6 +17,9 @@ class OAuthService {
     this.jwtExpiresIn = process.env.JWT_EXPIRES_IN || '1h';
     this.refreshTokenExpiresIn = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
     
+    // Password hashing configuration
+    this.saltRounds = 12;
+    
     // Default roles and permissions
     this.roles = {
       'admin': ['*'],
@@ -23,24 +27,26 @@ class OAuthService {
       'viewer': ['cache:read', 'analytics:read']
     };
     
-    this.initializeDefaultUsers();
+    // Initialize default users asynchronously
+    this.initializeDefaultUsers().catch(console.error);
   }
 
   /**
    * Initialize some default users for testing
    */
-  initializeDefaultUsers() {
-    // Create a default admin user
-    const adminUser = this.createUser({
+  async initializeDefaultUsers() {
+    // Create a default admin user with hashed password
+    const adminUser = await this.createUser({
       email: 'admin@example.com',
       name: 'Admin User',
       provider: 'local',
       providerId: 'admin-local',
-      role: 'admin'
+      role: 'admin',
+      password: 'admin123'
     });
     
     console.log(`👤 Default admin user created: ${adminUser.email}`);
-    console.log('   Use this for OAuth2 testing');
+    console.log('   Password: admin123');
   }
 
   /**
@@ -48,16 +54,24 @@ class OAuthService {
    * @param {Object} userData - User data
    * @returns {Object} Created user
    */
-  createUser(userData) {
+  async createUser(userData) {
     const userId = crypto.randomUUID();
+    
+    // Hash password if provided
+    let hashedPassword = null;
+    if (userData.password) {
+      hashedPassword = await bcrypt.hash(userData.password, this.saltRounds);
+    }
+    
     const user = {
       id: userId,
       email: userData.email,
       name: userData.name,
-      provider: userData.provider || 'google',
-      providerId: userData.providerId,
+      provider: userData.provider || 'local',
+      providerId: userData.providerId || userData.email,
       role: userData.role || 'user',
       permissions: this.roles[userData.role || 'user'] || this.roles.user,
+      passwordHash: hashedPassword,
       createdAt: new Date(),
       lastLogin: null,
       isActive: true,
@@ -95,6 +109,22 @@ class OAuthService {
       }
     }
     return null;
+  }
+
+  /**
+   * Verify user password
+   * @param {string} email - User email
+   * @param {string} password - Plain text password
+   * @returns {Object|null} User if credentials are valid
+   */
+  async verifyUserCredentials(email, password) {
+    const user = this.findUserByEmail(email);
+    if (!user || !user.passwordHash) {
+      return null;
+    }
+
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    return isValid ? user : null;
   }
 
   /**

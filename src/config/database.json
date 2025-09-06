@@ -1,0 +1,27 @@
+{
+  "development": {
+    "use_env_variable": "DATABASE_URL",
+    "dialect": "postgres",
+    "logging": true
+  },
+  "test": {
+    "username": "ugc_user",
+    "password": "ugc_password",
+    "database": "ugc_db_test",
+    "host": "localhost",
+    "port": 5432,
+    "dialect": "postgres",
+    "logging": false
+  },
+  "production": {
+    "use_env_variable": "DATABASE_URL",
+    "dialect": "postgres",
+    "logging": false,
+    "dialectOptions": {
+      "ssl": {
+        "require": true,
+        "rejectUnauthorized": false
+      }
+    }
+  }
+}

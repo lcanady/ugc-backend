@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # Main application
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.docker
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - ugc-network
+    restart: unless-stopped
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ugc-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # PostgreSQL for future database needs
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=ugc_db
+      - POSTGRES_USER=ugc_user
+      - POSTGRES_PASSWORD=ugc_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ugc-network
+    restart: unless-stopped
+
+  # Redis Commander for Redis management (optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - ugc-network
+    restart: unless-stopped
+
+  # pgAdmin for PostgreSQL management (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "8080:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@ugc.local
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - ugc-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  ugc-network:
+    driver: bridge

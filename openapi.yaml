@@ -1,0 +1,1358 @@
+openapi: 3.0.3
+info:
+  title: UGC Ad Creator API
+  description: |
+    A Node.js RESTful API server that generates User Generated Content advertisements from creative briefs and images. 
+    The system leverages AI services (OpenAI for script generation, Gemini for image analysis, and Google Veo 3 for video generation) 
+    to create a complete workflow from concept to final video output.
+  version: 1.0.0
+  contact:
+    name: UGC Ad Creator API Support
+  license:
+    name: ISC
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.ugc-creator.com
+    description: Production server
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key as Bearer token in Authorization header
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the current status and health information of the API server
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "OK"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  environment:
+                    type: string
+                    example: "development"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  uptime:
+                    type: number
+                    description: Server uptime in seconds
+                  memory:
+                    type: object
+                    description: Memory usage information
+
+  /api:
+    get:
+      summary: API information endpoint
+      description: Returns basic information about the API and available endpoints
+      tags:
+        - Information
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "UGC Ad Creator API"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  endpoints:
+                    type: object
+
+  /api/v1/cache/metrics:
+    get:
+      summary: Get cache metrics
+      description: Returns comprehensive cache performance metrics and statistics
+      tags:
+        - Cache Management
+      responses:
+        '200':
+          description: Cache metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      metrics:
+                        type: object
+                        properties:
+                          hits:
+                            type: integer
+                            description: Number of cache hits
+                            example: 150
+                          misses:
+                            type: integer
+                            description: Number of cache misses
+                            example: 50
+                          sets:
+                            type: integer
+                            description: Number of cache sets
+                            example: 50
+                          errors:
+                            type: integer
+                            description: Number of cache errors
+                            example: 2
+                          totalRequests:
+                            type: integer
+                            description: Total cache requests
+                            example: 200
+                          hitRate:
+                            type: string
+                            description: Cache hit rate percentage
+                            example: "75.00%"
+                          isConnected:
+                            type: boolean
+                            description: Redis connection status
+                            example: true
+                          redis:
+                            type: object
+                            properties:
+                              keyCount:
+                                type: integer
+                                description: Total keys in Redis
+                                example: 1250
+                              memoryInfo:
+                                type: object
+                                description: Redis memory usage information
+                      timestamp:
+                        type: string
+                        format: date-time
+        '500':
+          description: Failed to retrieve cache metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/cache/health:
+    get:
+      summary: Get cache health status
+      description: Returns the health status of the Redis cache service
+      tags:
+        - Cache Management
+      responses:
+        '200':
+          description: Cache is healthy or degraded but functional
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [healthy, degraded, unhealthy]
+                        example: "healthy"
+                      connected:
+                        type: boolean
+                        example: true
+                      timestamp:
+                        type: string
+                        format: date-time
+                      latency:
+                        type: string
+                        example: "low"
+                      error:
+                        type: string
+                        description: Error message if status is degraded
+        '503':
+          description: Cache is unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: "unhealthy"
+                      connected:
+                        type: boolean
+                        example: false
+
+  /api/v1/cache/invalidate:
+    post:
+      summary: Invalidate cache entries
+      description: Invalidate cache entries by type or custom pattern
+      tags:
+        - Cache Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [image-analysis, script-generation]
+                  description: Type of cache to invalidate
+                  example: "image-analysis"
+                pattern:
+                  type: string
+                  description: Custom Redis key pattern to invalidate
+                  example: "custom:*"
+              oneOf:
+                - required: [type]
+                - required: [pattern]
+            examples:
+              invalidate-image-analysis:
+                summary: Invalidate image analysis cache
+                value:
+                  type: "image-analysis"
+              invalidate-script-generation:
+                summary: Invalidate script generation cache
+                value:
+                  type: "script-generation"
+              invalidate-custom-pattern:
+                summary: Invalidate custom pattern
+                value:
+                  pattern: "custom:*"
+      responses:
+        '200':
+          description: Cache invalidated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      deletedCount:
+                        type: integer
+                        description: Number of cache entries deleted
+                        example: 25
+                      type:
+                        type: string
+                        example: "image-analysis"
+                      pattern:
+                        type: string
+                        example: "image-analysis:*"
+                      timestamp:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid invalidation request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to invalidate cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/cache/reset-metrics:
+    post:
+      summary: Reset cache metrics
+      description: Reset all cache performance metrics to zero
+      tags:
+        - Cache Management
+      responses:
+        '200':
+          description: Cache metrics reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "Cache metrics reset successfully"
+                      timestamp:
+                        type: string
+                        format: date-time
+        '500':
+          description: Failed to reset cache metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/cache/warm:
+    post:
+      summary: Warm cache with data
+      description: Pre-populate cache with provided image analysis data
+      tags:
+        - Cache Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  description: Array of image data with analysis results
+                  items:
+                    type: object
+                    properties:
+                      buffer:
+                        type: string
+                        format: byte
+                        description: Base64 encoded image buffer
+                      mimeType:
+                        type: string
+                        example: "image/jpeg"
+                      analysisResult:
+                        type: object
+                        properties:
+                          objects:
+                            type: array
+                            items:
+                              type: string
+                            example: ["smartphone", "table"]
+                          people:
+                            type: array
+                            items:
+                              type: string
+                            example: ["young person"]
+                          setting:
+                            type: string
+                            example: "modern office"
+                          actions:
+                            type: array
+                            items:
+                              type: string
+                            example: ["using phone"]
+                          timestamp:
+                            type: string
+                            format: date-time
+                      options:
+                        type: object
+                        description: Analysis options used
+                        properties:
+                          focusAreas:
+                            type: array
+                            items:
+                              type: string
+                            example: ["objects", "people"]
+              required:
+                - images
+      responses:
+        '200':
+          description: Cache warmed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      warmedCount:
+                        type: integer
+                        description: Number of entries successfully warmed
+                        example: 5
+                      totalProvided:
+                        type: integer
+                        description: Total number of entries provided
+                        example: 5
+                      timestamp:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid warm request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to warm cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                    type: object
+                    properties:
+                      rss:
+                        type: number
+                      heapTotal:
+                        type: number
+                      heapUsed:
+                        type: number
+                      external:
+                        type: number
+
+  /api:
+    get:
+      summary: API information
+      description: Returns basic API information and available endpoints
+      tags:
+        - Information
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "UGC Ad Creator API"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  endpoints:
+                    type: object
+
+  /api/v1/ugc/generate:
+    post:
+      summary: Generate UGC advertisement
+      description: |
+        Generates a UGC advertisement from a creative brief and uploaded images. 
+        The system analyzes the images, generates or refines a script, and creates video content.
+      tags:
+        - UGC Generation
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - creativeBrief
+                - images
+              properties:
+                creativeBrief:
+                  type: string
+                  description: Campaign description and goals for the UGC ad
+                  example: "Create an engaging fitness app advertisement showcasing workout tracking features"
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Image files (PNG, JPG, JPEG) - maximum 4 images, 10MB each
+                  minItems: 1
+                  maxItems: 4
+                script:
+                  type: string
+                  description: Optional user-provided script to refine instead of generating new one
+                  example: "Person opens fitness app and starts workout"
+                options:
+                  type: object
+                  description: Optional generation parameters
+                  properties:
+                    aspectRatio:
+                      type: string
+                      enum: ["16:9", "9:16", "1:1"]
+                      default: "16:9"
+                    segmentCount:
+                      type: integer
+                      minimum: 1
+                      maximum: 4
+                      default: 2
+                    useFastModel:
+                      type: boolean
+                      default: false
+                    personGeneration:
+                      type: string
+                      enum: ["allow_adult", "allow_all", "dont_allow"]
+                      default: "allow_adult"
+      responses:
+        '200':
+          description: UGC generation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UGCGenerationResponse'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_brief:
+                  summary: Missing creative brief
+                  value:
+                    success: false
+                    error:
+                      code: "INVALID_CREATIVE_BRIEF"
+                      message: "Creative brief is required"
+                no_images:
+                  summary: No images provided
+                  value:
+                    success: false
+                    error:
+                      code: "NO_IMAGES_PROVIDED"
+                      message: "At least one image is required"
+                too_many_images:
+                  summary: Too many images
+                  value:
+                    success: false
+                    error:
+                      code: "TOO_MANY_IMAGES"
+                      message: "Maximum 4 images allowed"
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: External service error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/ugc/download:
+    post:
+      summary: Download generated videos
+      description: Downloads the generated video files from a previous UGC generation request
+      tags:
+        - UGC Generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - operationId
+              properties:
+                operationId:
+                  type: string
+                  description: The operation ID from a previous generation request
+                  example: "ugc_1234567890_abc123def"
+      responses:
+        '200':
+          description: Video download successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      videos:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            segmentIndex:
+                              type: integer
+                            videoUrl:
+                              type: string
+                              format: uri
+                            duration:
+                              type: number
+                            fileSize:
+                              type: number
+        '404':
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/ugc/status/{operationId}:
+    get:
+      summary: Check generation status
+      description: Checks the status of a UGC generation operation
+      tags:
+        - UGC Generation
+      parameters:
+        - name: operationId
+          in: path
+          required: true
+          description: The operation ID from a generation request
+          schema:
+            type: string
+            example: "ugc_1234567890_abc123def"
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      operationId:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["pending", "processing", "completed", "failed"]
+                      progress:
+                        type: number
+                        minimum: 0
+                        maximum: 100
+                      estimatedTimeRemaining:
+                        type: number
+                        description: Estimated seconds remaining
+                      createdAt:
+                        type: string
+                        format: date-time
+                      completedAt:
+                        type: string
+                        format: date-time
+        '404':
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code identifier
+              example: "INVALID_API_KEY"
+            message:
+              type: string
+              description: Human readable error message
+              example: "Invalid API key provided."
+            details:
+              type: object
+              description: Additional error details
+              nullable: true
+
+    UGCGenerationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              description: Unique operation identifier
+              example: "ugc_1234567890_abc123def"
+            creativeBrief:
+              type: string
+              description: The provided creative brief
+            imageAnalysis:
+              type: object
+              properties:
+                uploadedImages:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ImageAnalysis'
+                generatedImages:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ImageAnalysis'
+            script:
+              type: object
+              properties:
+                segments:
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/ScriptSegment'
+            videoSegments:
+              type: array
+              items:
+                $ref: '#/components/schemas/VideoSegment'
+            metadata:
+              type: object
+              properties:
+                totalProcessingTime:
+                  type: number
+                  description: Total processing time in milliseconds
+                model:
+                  type: string
+                  example: "veo-3.0-generate-preview"
+
+    ImageAnalysis:
+      type: object
+      properties:
+        imageIndex:
+          type: integer
+        description:
+          type: string
+          description: AI-generated description of the image content
+        objects:
+          type: array
+          items:
+            type: string
+          description: Objects identified in the image
+        people:
+          type: array
+          items:
+            type: string
+          description: People identified in the image
+        setting:
+          type: string
+          description: The setting or environment of the image
+        actions:
+          type: array
+          items:
+            type: string
+          description: Actions or activities visible in the image
+
+    ScriptSegment:
+      type: object
+      properties:
+        action:
+          type: string
+          description: The action or scene description
+        dialogue:
+          type: string
+          description: Spoken dialogue for the segment
+        duration:
+          type: number
+          description: Duration in seconds (typically 7-8 seconds)
+
+    VideoSegment:
+      type: object
+      properties:
+        segmentIndex:
+          type: integer
+        videoFile:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+            filename:
+              type: string
+            mimeType:
+              type: string
+              example: "video/mp4"
+        duration:
+          type: number
+          description: Duration in seconds
+        resolution:
+          type: string
+          example: "720p"
+        hasAudio:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code for programmatic handling
+              example: "INVALID_CREATIVE_BRIEF"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Creative brief is required"
+            details:
+              type: object
+              description: Additional error details (optional)
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (if implemented)
+
+  /api/v1/auth/keys:
+    post:
+      summary: Generate new API key
+      description: Creates a new API key with specified permissions and rate limits
+      tags:
+        - Authentication
+      security: []  # No authentication required for key generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Human readable name for the API key
+                  example: "My Application Key"
+                description:
+                  type: string
+                  description: Description of the key's purpose
+                  example: "API key for my UGC generation app"
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                    enum: [ugc:generate, cache:read, cache:write, analytics:read, "*"]
+                  description: Array of permissions for the API key
+                  example: ["ugc:generate", "cache:read"]
+                rateLimit:
+                  type: object
+                  properties:
+                    windowMs:
+                      type: integer
+                      description: Rate limit window in milliseconds
+                      example: 900000
+                    maxRequests:
+                      type: integer
+                      description: Maximum requests per window
+                      example: 100
+                    maxDailyRequests:
+                      type: integer
+                      description: Maximum requests per day
+                      example: 1000
+                metadata:
+                  type: object
+                  description: Additional metadata for the API key
+      responses:
+        '201':
+          description: API key generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        description: Unique identifier for the API key
+                      key:
+                        type: string
+                        description: The actual API key (only shown once)
+                        example: "ugc_abc123def456_789xyz..."
+                      name:
+                        type: string
+                        example: "My Application Key"
+                      description:
+                        type: string
+                        example: "API key for my UGC generation app"
+                      permissions:
+                        type: array
+                        items:
+                          type: string
+                        example: ["ugc:generate", "cache:read"]
+                      rateLimit:
+                        type: object
+                        properties:
+                          windowMs:
+                            type: integer
+                            example: 900000
+                          maxRequests:
+                            type: integer
+                            example: 100
+                          maxDailyRequests:
+                            type: integer
+                            example: 1000
+                      createdAt:
+                        type: string
+                        format: date-time
+                      isActive:
+                        type: boolean
+                        example: true
+                  message:
+                    type: string
+                    example: "API key generated successfully. Please store it securely as it will not be shown again."
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: List API keys
+      description: Returns a list of all API keys (requires analytics:read permission)
+      tags:
+        - Authentication
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      keys:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            name:
+                              type: string
+                            description:
+                              type: string
+                            permissions:
+                              type: array
+                              items:
+                                type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+                            lastUsed:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            isActive:
+                              type: boolean
+                            totalRequests:
+                              type: integer
+                            dailyRequests:
+                              type: integer
+                      total:
+                        type: integer
+                        description: Total number of API keys
+                      active:
+                        type: integer
+                        description: Number of active API keys
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/keys/{keyId}:
+    get:
+      summary: Get API key details
+      description: Returns detailed information and usage statistics for a specific API key
+      tags:
+        - Authentication
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The API key ID
+      responses:
+        '200':
+          description: API key details and usage statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      keyInfo:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          description:
+                            type: string
+                          createdAt:
+                            type: string
+                            format: date-time
+                          lastUsed:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          isActive:
+                            type: boolean
+                      usage:
+                        type: object
+                        properties:
+                          totalRequests:
+                            type: integer
+                          dailyRequests:
+                            type: integer
+                          errors:
+                            type: integer
+                          lastError:
+                            type: object
+                            nullable: true
+                          recentRequests:
+                            type: array
+                            items:
+                              type: object
+                      rateLimit:
+                        type: object
+                        properties:
+                          limit:
+                            type: integer
+                          remaining:
+                            type: integer
+                          dailyLimit:
+                            type: integer
+                          dailyRemaining:
+                            type: integer
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/keys/{keyId}/deactivate:
+    post:
+      summary: Deactivate API key
+      description: Deactivates an API key, preventing its use for authentication
+      tags:
+        - Authentication
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The API key ID
+      responses:
+        '200':
+          description: API key deactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "API key deactivated successfully."
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/keys/{keyId}/reactivate:
+    post:
+      summary: Reactivate API key
+      description: Reactivates a previously deactivated API key
+      tags:
+        - Authentication
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The API key ID
+      responses:
+        '200':
+          description: API key reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "API key reactivated successfully."
+        '404':
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/analytics:
+    get:
+      summary: Get authentication analytics
+      description: Returns system-wide analytics for API key usage and performance
+      tags:
+        - Authentication
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Authentication analytics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      totalKeys:
+                        type: integer
+                        description: Total number of API keys
+                      activeKeys:
+                        type: integer
+                        description: Number of active API keys
+                      totalRequests:
+                        type: integer
+                        description: Total requests across all keys
+                      dailyRequests:
+                        type: integer
+                        description: Requests today across all keys
+                      totalErrors:
+                        type: integer
+                        description: Total errors across all keys
+                      topKeys:
+                        type: array
+                        description: Top API keys by usage
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            name:
+                              type: string
+                            totalRequests:
+                              type: integer
+                            dailyRequests:
+                              type: integer
+                            lastUsed:
+                              type: string
+                              format: date-time
+                              nullable: true
+                      recentActivity:
+                        type: array
+                        description: Recent API activity
+                        items:
+                          type: object
+                          properties:
+                            keyId:
+                              type: string
+                            keyName:
+                              type: string
+                            timestamp:
+                              type: string
+                              format: date-time
+                            endpoint:
+                              type: string
+                            method:
+                              type: string
+                            statusCode:
+                              type: integer
+
+  /api/v1/auth/me:
+    get:
+      summary: Get current API key information
+      description: Returns information about the currently authenticated API key
+      tags:
+        - Authentication
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current API key information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      keyInfo:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          description:
+                            type: string
+                          createdAt:
+                            type: string
+                            format: date-time
+                          lastUsed:
+                            type: string
+                            format: date-time
+                          isActive:
+                            type: boolean
+                      usage:
+                        type: object
+                        properties:
+                          totalRequests:
+                            type: integer
+                          dailyRequests:
+                            type: integer
+                          errors:
+                            type: integer
+                          lastError:
+                            type: object
+                            nullable: true
+                          recentRequests:
+                            type: array
+                            items:
+                              type: object
+                      rateLimit:
+                        type: object
+                        properties:
+                          limit:
+                            type: integer
+                          remaining:
+                            type: integer
+                          dailyLimit:
+                            type: integer
+                          dailyRemaining:
+                            type: integer
+                      currentRequest:
+                        type: object
+                        properties:
+                          timestamp:
+                            type: string
+                            format: date-time
+                          endpoint:
+                            type: string
+                          method:
+                            type: string
+                          userAgent:
+                            type: string
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Authentication
+    description: API key management and authentication endpoints
+  - name: Health
+    description: Health check and monitoring endpoints
+  - name: Information
+    description: API information and documentation
+  - name: UGC Generation
+    description: UGC advertisement generation and management

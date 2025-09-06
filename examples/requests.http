@@ -1,0 +1,103 @@
+# UGC Ad Creator API - HTTP Requests
+# Use with REST Client extension in VS Code or similar tools
+
+### Health Check
+GET http://localhost:3000/health
+
+### API Information
+GET http://localhost:3000/api
+
+### Generate UGC Ad - Basic Example
+POST http://localhost:3000/api/v1/ugc/generate
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="creativeBrief"
+
+Create an engaging fitness app advertisement showcasing workout tracking features and motivating users to stay active
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="images"; filename="fitness-app.jpg"
+Content-Type: image/jpeg
+
+< ./sample-images/fitness-app.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Generate UGC Ad - With Optional Script
+POST http://localhost:3000/api/v1/ugc/generate
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="creativeBrief"
+
+Create a compelling advertisement for a new fitness tracking app
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="script"
+
+Person opens the fitness app and starts tracking their morning workout routine
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="images"; filename="app-screenshot.jpg"
+Content-Type: image/jpeg
+
+< ./sample-images/app-screenshot.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Generate UGC Ad - With Custom Options
+POST http://localhost:3000/api/v1/ugc/generate
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="creativeBrief"
+
+Create a vertical social media advertisement for a fitness app targeting young adults
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="options"
+
+{
+  "aspectRatio": "9:16",
+  "segmentCount": 1,
+  "useFastModel": true,
+  "personGeneration": "allow_adult"
+}
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="images"; filename="vertical-content.jpg"
+Content-Type: image/jpeg
+
+< ./sample-images/vertical-content.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Check Generation Status
+GET http://localhost:3000/api/v1/ugc/status/ugc_1705312200_abc123def
+
+### Download Videos
+POST http://localhost:3000/api/v1/ugc/download
+Content-Type: application/json
+
+{
+  "operationId": "ugc_1705312200_abc123def"
+}
+
+### Error Examples
+
+### Missing Creative Brief (400 Error)
+POST http://localhost:3000/api/v1/ugc/generate
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="images"; filename="sample.jpg"
+Content-Type: image/jpeg
+
+< ./sample-images/sample.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### No Images Provided (400 Error)
+POST http://localhost:3000/api/v1/ugc/generate
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="creativeBrief"
+
+Create a fitness advertisement
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Invalid Operation ID (404 Error)
+GET http://localhost:3000/api/v1/ugc/status/invalid_operation_id

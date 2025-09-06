@@ -1,0 +1,28 @@
+# Override file for development environment
+# This file is automatically loaded by docker-compose and extends docker-compose.yml
+
+version: '3.8'
+
+services:
+  app:
+    environment:
+      - DEBUG=ugc:*
+      - LOG_LEVEL=debug
+      - CACHE_ENABLED=true
+      - AUTH_ENABLED=true
+      - OAUTH_ENABLED=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+    # Enable debugging
+    command: ["npm", "run", "dev"]
+    
+  # Add development tools
+  redis:
+    # Enable Redis logging in development
+    command: redis-server --appendonly yes --loglevel verbose
+    
+  postgres:
+    environment:
+      - POSTGRES_LOG_STATEMENT=all
+      - POSTGRES_LOG_MIN_DURATION_STATEMENT=0

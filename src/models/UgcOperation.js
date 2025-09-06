@@ -29,6 +29,14 @@ module.exports = (sequelize) => {
         key: 'id'
       }
     },
+    batchId: {
+      type: DataTypes.UUID,
+      field: 'batch_id',
+      references: {
+        model: 'batch_operations',
+        key: 'id'
+      }
+    },
     status: {
       type: DataTypes.STRING(50),
       allowNull: false,
@@ -97,6 +105,12 @@ module.exports = (sequelize) => {
     UgcOperation.belongsTo(models.User, {
       foreignKey: 'user_id',
       as: 'user',
+      onDelete: 'SET NULL'
+    });
+
+    UgcOperation.belongsTo(models.BatchOperation, {
+      foreignKey: 'batch_id',
+      as: 'batch',
       onDelete: 'SET NULL'
     });
   };

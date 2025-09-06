@@ -2,6 +2,7 @@ const imageAnalysisService = require('../services/imageAnalysisService');
 const scriptGenerationService = require('../services/scriptGenerationService');
 const videoGenerationService = require('../services/videoGenerationService');
 const operationService = require('../services/operationService');
+const jobManager = require('../jobs/jobManager');
 const config = require('../utils/config');
 
 /**
@@ -94,27 +95,26 @@ class UGCController {
         options
       });
 
-      // Update operation as completed
-      await operationService.updateOperationStatus(operation.operationId, 'completed', {
+      // Update operation as processing (video generation is queued)
+      await operationService.updateOperationStatus(operation.operationId, 'processing', {
         scriptContent: result.script,
-        videoUrls: result.videoSegments?.map(segment => segment.videoFile) || [],
+        videoJobId: result.videoGeneration?.jobId,
         metadata: {
-          completedAt: new Date().toISOString(),
-          totalProcessingTime: result.metadata?.totalProcessingTime,
-          finalResult: {
-            videoSegmentCount: result.videoSegments?.length || 0,
-            scriptSegmentCount: Object.keys(result.script?.segments || {}).length
-          }
+          queuedAt: new Date().toISOString(),
+          processingTime: result.metadata?.processingTime,
+          scriptSegmentCount: Object.keys(result.script?.segments || {}).length,
+          videoGenerationStatus: 'queued'
         }
       });
 
-      res.status(200).json({
+      res.status(202).json({
         success: true,
         data: {
           ...result,
           operationId: operation.operationId
         },
-        message: 'UGC advertisement generated successfully'
+        message: 'UGC advertisement processing started. Video generation is queued in background.',
+        statusEndpoint: `/api/v1/ugc/status/${operation.operationId}`
       });
 
     } catch (error) {
@@ -223,50 +223,67 @@ class UGCController {
       // Step 3: Prepare images for video generation (using uploaded images)
       const generatedImages = []; // No additional image generation for now
 
-      // Step 4: Generate video segments using Veo 3
-      workflow.steps.push({ step: 'video_generation', status: 'started', timestamp: new Date().toISOString() });
+      // Step 4: Queue video generation as background job
+      workflow.steps.push({ step: 'video_generation', status: 'queued', timestamp: new Date().toISOString() });
       
       if (operationId) {
         await operationService.addWorkflowStep(operationId, { 
           step: 'video_generation', 
-          status: 'started' 
+          status: 'queued' 
         });
       }
       
-      const videoSegments = await this.generateVideoSegments({
+      // Queue video generation job instead of processing synchronously
+      const videoJob = await jobManager.addVideoGenerationJob({
+        operationId,
+        script: scriptResult.segments,
+        images: uploadedImages.map(img => ({
+          buffer: img.buffer,
+          mimeType: img.mimetype,
+          originalName: img.originalname
+        })),
+        userId: userId,
+        userTier: req.user?.tier || 'basic', // Get user tier for priority calculation
         creativeBrief,
         imageAnalysis,
-        scriptResult,
-        generatedImages,
         options
+      }, {
+        source: 'api',           // API request gets higher priority
+        urgent: options.urgent,  // Allow urgent flag
+        scheduledFor: options.scheduledFor, // Allow scheduling
+        isRetry: false
       });
       
       workflow.steps.push({ 
         step: 'video_generation', 
-        status: 'completed', 
+        status: 'queued', 
         timestamp: new Date().toISOString(),
-        result: { videoSegments: videoSegments.length }
+        result: { jobId: videoJob.id, queuePosition: videoJob.opts?.delay || 0 }
       });
 
       if (operationId) {
         await operationService.addWorkflowStep(operationId, { 
           step: 'video_generation', 
-          status: 'completed',
-          result: { videoSegments: videoSegments.length }
+          status: 'queued',
+          result: { jobId: videoJob.id }
         });
       }
 
-      // Step 5: Compile final result
+      // Step 5: Compile final result (without video segments since they're being generated in background)
       const finalResult = {
         id: this.generateResultId(),
         creativeBrief,
         imageAnalysis: imageAnalysis,
         script: scriptResult,
-        videoSegments,
+        videoGeneration: {
+          status: 'queued',
+          jobId: videoJob.id,
+          estimatedCompletionTime: new Date(Date.now() + 5 * 60 * 1000).toISOString() // Estimate 5 minutes
+        },
         workflow,
-        completedAt: new Date().toISOString(),
+        queuedAt: new Date().toISOString(),
         metadata: {
-          totalProcessingTime: Date.now() - new Date(workflow.startTime).getTime(),
+          processingTime: Date.now() - new Date(workflow.startTime).getTime(),
           model: 'veo-3.0-generate-preview',
           version: '1.0.0'
         }
@@ -440,9 +457,13 @@ class UGCController {
         });
       }
 
+      // Use job status service for enhanced status information
+      const jobStatusService = require('../services/jobStatusService');
+      const enhancedStatus = await jobStatusService.getJobStatus(operationId);
+
       res.status(200).json({
         success: true,
-        data: {
+        data: enhancedStatus || {
           operationId: operation.operationId,
           status: operation.status,
           creativeBrief: operation.creativeBrief,
@@ -673,6 +694,47 @@ class UGCController {
         code: 'STATS_RETRIEVAL_ERROR'
       });
     }
+  }
+
+  /**
+   * Maps job status to user-friendly status
+   * @param {Object} jobStatus - Job status from queue
+   * @returns {string} User-friendly status
+   */
+  mapJobStatusToUserFriendly(jobStatus) {
+    if (!jobStatus) return 'unknown';
+    
+    if (jobStatus.finishedOn && jobStatus.returnvalue) {
+      return 'completed';
+    } else if (jobStatus.failedReason) {
+      return 'failed';
+    } else if (jobStatus.processedOn) {
+      return 'processing';
+    } else {
+      return 'queued';
+    }
+  }
+
+  /**
+   * Estimates remaining time for job completion
+   * @param {Object} jobStatus - Job status from queue
+   * @returns {number|null} Estimated seconds remaining
+   */
+  estimateTimeRemaining(jobStatus) {
+    if (!jobStatus || !jobStatus.processedOn || jobStatus.finishedOn) {
+      return null;
+    }
+
+    const progress = jobStatus.progress || 0;
+    if (progress <= 0) {
+      return 300; // Default estimate of 5 minutes
+    }
+
+    const elapsedTime = Date.now() - jobStatus.processedOn;
+    const estimatedTotalTime = elapsedTime / (progress / 100);
+    const remainingTime = Math.max(0, estimatedTotalTime - elapsedTime);
+    
+    return Math.round(remainingTime / 1000); // Return seconds
   }
 
   /**

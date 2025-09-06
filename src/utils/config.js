@@ -29,6 +29,9 @@ class Config {
       'OPENAI_MODEL': 'gpt-5',
       'GEMINI_MODEL': 'gemini-2.5-flash-image-preview',
       'REDIS_URL': 'redis://localhost:6379',
+      'REDIS_HOST': 'localhost',
+      'REDIS_PORT': '6379',
+      'REDIS_PASSWORD': '',
       'CACHE_ENABLED': 'true',
       'IMAGE_ANALYSIS_CACHE_TTL': '86400', // 24 hours
       'SCRIPT_CACHE_TTL': '14400', // 4 hours
@@ -195,6 +198,19 @@ class Config {
   }
 
   /**
+   * Gets Redis configuration
+   * @returns {object} Redis configuration object
+   */
+  getRedisConfig() {
+    return {
+      url: this.get('REDIS_URL'),
+      host: this.get('REDIS_HOST'),
+      port: this.getInt('REDIS_PORT'),
+      password: this.get('REDIS_PASSWORD') || undefined
+    };
+  }
+
+  /**
    * Gets authentication configuration
    * @returns {object} Authentication configuration object
    */
@@ -276,6 +292,7 @@ module.exports.nodeEnv = config.get('NODE_ENV');
 module.exports.maxImages = config.getInt('MAX_IMAGES');
 module.exports.maxFileSize = config.getInt('MAX_FILE_SIZE');
 module.exports.appUrl = config.get('APP_URL');
+module.exports.redis = config.getRedisConfig();
 
 // Database configuration exports
 module.exports.DATABASE_URL = config.get('DATABASE_URL');

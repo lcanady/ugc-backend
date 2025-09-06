@@ -90,6 +90,8 @@ const ugcController = require('./src/controllers/ugcController');
 const cacheController = require('./src/controllers/cacheController');
 const apiKeyController = require('./src/controllers/apiKeyController');
 const oauthController = require('./src/controllers/oauthController');
+const jobController = require('./src/controllers/jobController');
+const batchController = require('./src/controllers/batchController');
 
 // Import middleware
 const AuthMiddleware = require('./src/middleware/authMiddleware');
@@ -119,6 +121,27 @@ app.get('/api', (req, res) => {
         profile: 'GET /api/v1/oauth/profile',
         users: 'GET /api/v1/oauth/users',
         stats: 'GET /api/v1/oauth/stats'
+      },
+      jobs: {
+        dashboard: 'GET /api/v1/jobs/dashboard',
+        health: 'GET /api/v1/jobs/health',
+        queues: 'GET /api/v1/jobs/queues/stats',
+        recent: 'GET /api/v1/jobs/recent',
+        metrics: 'GET /api/v1/jobs/metrics'
+      },
+      batch: {
+        create: 'POST /api/v1/batch/generate',
+        createOptimized: 'POST /api/v1/batch/generate-optimized',
+        createWithFiles: 'POST /api/v1/batch/generate-with-files',
+        status: 'GET /api/v1/batch/:batchId/status',
+        results: 'GET /api/v1/batch/:batchId/results',
+        download: 'GET /api/v1/batch/:batchId/download',
+        cancel: 'POST /api/v1/batch/:batchId/cancel',
+        history: 'GET /api/v1/batch/history',
+        analytics: 'GET /api/v1/batch/analytics',
+        detailedAnalytics: 'GET /api/v1/batch/:batchId/analytics',
+        analyzeOptimization: 'POST /api/v1/batch/analyze-optimization',
+        optimizeScheduling: 'POST /api/v1/batch/optimize-scheduling'
       }
     }
   });
@@ -193,6 +216,130 @@ app.post('/api/v1/cache/warm',
   cacheController.warmCache.bind(cacheController)
 );
 
+// Job management routes (require admin permissions)
+app.get('/api/v1/jobs/dashboard', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.getDashboard.bind(jobController)
+);
+app.get('/api/v1/jobs/queues/stats', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.getAllQueueStats.bind(jobController)
+);
+app.get('/api/v1/jobs/queues/:queueName/stats', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.getQueueStats.bind(jobController)
+);
+app.get('/api/v1/jobs/queues/:queueName/jobs/:jobId', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.getJobStatus.bind(jobController)
+);
+app.get('/api/v1/jobs/queues/:queueName/jobs/:jobId/details', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.getJobDetails.bind(jobController)
+);
+app.get('/api/v1/jobs/recent', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.getRecentJobs.bind(jobController)
+);
+app.get('/api/v1/jobs/queues/:queueName/trends', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.getQueueTrends.bind(jobController)
+);
+app.get('/api/v1/jobs/metrics', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.getPerformanceMetrics.bind(jobController)
+);
+app.get('/api/v1/jobs/export', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.exportQueueData.bind(jobController)
+);
+app.get('/api/v1/jobs/health', 
+  jobController.healthCheck.bind(jobController)
+);
+app.post('/api/v1/jobs/queues/:queueName/jobs/:jobId/retry', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.retryJob.bind(jobController)
+);
+app.delete('/api/v1/jobs/queues/:queueName/jobs/:jobId', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  jobController.cancelJob.bind(jobController)
+);
+
+// Job status polling and webhook endpoints
+app.get('/api/v1/jobs/operations/:operationId/status', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  jobController.getOperationJobStatus.bind(jobController)
+);
+app.post('/api/v1/jobs/operations/:operationId/webhook', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  jobController.registerWebhook.bind(jobController)
+);
+app.delete('/api/v1/jobs/operations/:operationId/webhook', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  jobController.unregisterWebhook.bind(jobController)
+);
+
+// Batch processing routes (require authentication)
+app.post('/api/v1/batch/generate', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.createBatch.bind(batchController)
+);
+app.post('/api/v1/batch/generate-with-files', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  upload.any(), // Allow multiple files with different field names
+  batchController.createBatchWithFiles.bind(batchController)
+);
+app.get('/api/v1/batch/:batchId/status', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.getBatchStatus.bind(batchController)
+);
+app.get('/api/v1/batch/:batchId/results', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.getBatchResults.bind(batchController)
+);
+app.get('/api/v1/batch/:batchId/download', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.downloadBatchResults.bind(batchController)
+);
+app.post('/api/v1/batch/:batchId/cancel', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.cancelBatch.bind(batchController)
+);
+app.get('/api/v1/batch/history', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.getBatchHistory.bind(batchController)
+);
+app.get('/api/v1/batch/analytics', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['analytics:read'] }),
+  batchController.getBatchAnalytics.bind(batchController)
+);
+app.post('/api/v1/batch/process-pending', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  batchController.processPendingBatches.bind(batchController)
+);
+app.get('/api/v1/batch/queue-status', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['*'] }),
+  batchController.getQueueStatus.bind(batchController)
+);
+
+// Batch optimization routes
+app.post('/api/v1/batch/generate-optimized', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.createOptimizedBatch.bind(batchController)
+);
+app.post('/api/v1/batch/analyze-optimization', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.analyzeBatchOptimization.bind(batchController)
+);
+app.post('/api/v1/batch/optimize-scheduling', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['ugc:generate'] }),
+  batchController.optimizeScheduling.bind(batchController)
+);
+app.get('/api/v1/batch/:batchId/analytics', 
+  OAuthMiddleware.validateAny({ requiredPermissions: ['analytics:read'] }),
+  batchController.getBatchDetailedAnalytics.bind(batchController)
+);
+
 // 404 handler for unmatched routes
 app.use(notFoundHandler);
 
@@ -202,6 +349,7 @@ app.use(errorHandler);
 // Initialize services
 const databaseService = require('./src/services/databaseService');
 const cleanupService = require('./src/services/cleanupService');
+const jobManager = require('./src/jobs/jobManager');
 
 async function initializeServices() {
   try {
@@ -234,6 +382,15 @@ async function initializeServices() {
     console.warn('⚠️  Cleanup service initialization failed:', error.message);
     console.warn('⚠️  Application will continue without automatic cleanup');
   }
+
+  try {
+    // Start job manager
+    await jobManager.start();
+    console.log('✅ Job manager started');
+  } catch (error) {
+    console.warn('⚠️  Job manager initialization failed:', error.message);
+    console.warn('⚠️  Application will continue without background job processing');
+  }
 }
 
 // Start server
@@ -252,6 +409,7 @@ const server = app.listen(serverConfig.port, async () => {
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
   cleanupService.stop();
+  await jobManager.stop();
   await cacheService.close();
   await databaseService.close();
   server.close(() => {
@@ -263,6 +421,7 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
   cleanupService.stop();
+  await jobManager.stop();
   await cacheService.close();
   await databaseService.close();
   server.close(() => {

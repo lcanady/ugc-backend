@@ -6,6 +6,7 @@ const ApiKey = require('./ApiKey');
 const RefreshToken = require('./RefreshToken');
 const ApiUsage = require('./ApiUsage');
 const UgcOperation = require('./UgcOperation');
+const BatchOperation = require('./BatchOperation');
 
 // Initialize models
 const models = {
@@ -13,7 +14,8 @@ const models = {
   ApiKey: ApiKey(sequelize),
   RefreshToken: RefreshToken(sequelize),
   ApiUsage: ApiUsage(sequelize),
-  UgcOperation: UgcOperation(sequelize)
+  UgcOperation: UgcOperation(sequelize),
+  BatchOperation: BatchOperation(sequelize)
 };
 
 // Define associations
